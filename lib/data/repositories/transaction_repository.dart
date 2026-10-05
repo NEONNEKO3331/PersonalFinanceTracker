@@ -79,6 +79,8 @@ class TransactionRepository {
 
   Future<void> delete(String id) => _db.deleteTx(id);
 
+  Future<void> deleteAll() => _db.deleteAllTx();
+
   domain.Transaction _toDomain(Transaction row) {
     return domain.Transaction(
       id: row.id,

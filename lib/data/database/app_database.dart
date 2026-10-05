@@ -55,6 +55,10 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteTx(String id) {
     return (delete(transactions)..where((t) => t.id.equals(id))).go();
   }
+
+  Future<void> deleteAllTx() {
+    return delete(transactions).go();
+  }
 }
 
 LazyDatabase _openConnection() {

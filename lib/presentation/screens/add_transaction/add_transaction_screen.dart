@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../domain/entities/transaction.dart';
+import '../../../main.dart';
 import '../../providers/transaction_provider.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
@@ -121,13 +122,18 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
               type: _type,
             );
       }
+      rootScaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(_isEdit ? 'Saved' : 'Saved'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
       if (mounted) context.go('/');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
-        );
-      }
+      rootScaffoldMessengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('Save failed: $e')),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }

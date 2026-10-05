@@ -1,64 +1,122 @@
-# MoneyBee (精簡版 V1)
+# MoneyBee
 
-離線優先的個人記帳 App：Flutter + SQLite (Drift) + 端側 PaddleOCR。
+Offline-first personal finance tracker (FYP V1).
 
-**不做**：後端、Redis、K8s、雲端同步（全部延後）。
+**Stack:** Flutter · Drift/SQLite · on-device PaddleOCR · rule-based categories
 
----
-
-## 功能
-
-- 手動新增收入 / 支出
-- 收據拍照 / 相簿 → 端側 OCR → 自動填入店名、金額、日期、分類
-- 本月收支儀表板 + 交易列表
-- 資料只存在本機 SQLite
+**Out of scope for V1:** backend, Redis, Kubernetes, cloud sync, accounts.
 
 ---
 
-## 專案結構
+## Features
+
+- Manual add / edit / delete of income and expense
+- Receipt capture (camera or gallery) → on-device OCR → auto-fill merchant, amount, date, category
+- Home dashboard:
+  - **This week / This month** toggle
+  - Income · expense · balance summary
+  - **Top spending** by category (up to 5, with share %)
+  - Recent transaction list
+- Settings: app version, clear all data (demo reset)
+- SnackBars on save / update / delete
+- All data stays on device (SQLite)
+
+---
+
+## Architecture
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  Presentation                                            │
+│  Home · Add/Edit · Scan · Settings                       │
+│  Riverpod providers · widgets                            │
+└───────────────────────────┬─────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────┐
+│  Domain                                                  │
+│  Transaction entity · Categories                         │
+│  OcrService (Paddle / Mock) · CategoryService (rules)    │
+└───────────────────────────┬─────────────────────────────┘
+                            │
+┌───────────────────────────▼─────────────────────────────┐
+│  Data                                                    │
+│  TransactionRepository → AppDatabase (Drift / SQLite)    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Flow (scan receipt):**
+
+```text
+Image → PaddleOCR (on-device) → text lines
+      → parse merchant / amount / date
+      → CategoryService.classify(text)
+      → prefill Add Transaction → user confirms → SQLite
+```
+
+**Project layout:**
 
 ```text
 moneybee/
 ├── lib/
 │   ├── main.dart
-│   ├── app/           # theme, router
-│   ├── domain/        # entities, OCR, category rules
-│   ├── data/          # Drift DB, repository
-│   └── presentation/  # screens, providers, widgets
-├── android/           # 打包設定片段
-├── assets/
+│   ├── app/                 # theme, router
+│   ├── domain/
+│   │   ├── entities/        # Transaction, Categories
+│   │   └── services/        # OCR, category rules
+│   ├── data/
+│   │   ├── database/        # Drift schema
+│   │   └── repositories/
+│   └── presentation/
+│       ├── providers/
+│       ├── screens/         # home, add, scan, settings
+│       └── widgets/
+├── android/                 # platform + NDK snippet
+├── assets/images/
 ├── pubspec.yaml
 └── README.md
 ```
 
 ---
 
-## 第一次建立可執行專案
+## Tech highlights
 
-此資料夾是 **原始碼骨架**。請在本機用 Flutter 補齊平台檔：
+| Area | Choice | Why |
+|------|--------|-----|
+| UI | Flutter + Material 3 | Cross-platform, fast iteration |
+| State | Riverpod | Explicit providers, easy test hooks |
+| Storage | Drift + SQLite | Type-safe SQL, offline-first, no server |
+| OCR | PaddleOCR (PP-OCRv5) via `paddle_ocr_flutter` | Fully on-device, no API key / quota |
+| Category | Keyword rules (`CategoryService`) | Lightweight, works offline, no ML model size |
+| Privacy | Local only | Receipts and amounts never leave the phone |
+
+**Design goals for V1:** small surface area, demo-ready in one device, no cloud dependency.
+
+---
+
+## Build & run
+
+### Prerequisites
+
+- Flutter SDK `>=3.3`
+- Android device **arm64** for real OCR (emulator x86 usually cannot load the native model)
+
+### First-time setup
 
 ```bash
-# 1. 進入目錄
 cd moneybee
 
-# 2. 用 Flutter 產生 android/ios 平台檔（不會覆蓋已有的 lib/）
+# Generate android/ios folders without overwriting lib/
 flutter create . --project-name moneybee --org com.moneybee
 
-# 3. 安裝依賴
 flutter pub get
 
-# 4. 產生 Drift 程式碼
+# Generate Drift code
 dart run build_runner build --delete-conflicting-outputs
-
-# 5. 套用 Android 設定（見下方）
-
-# 6. 真機執行（OCR 需要 arm64 Android）
-flutter run --release
 ```
 
-### Android 必要設定
+### Android config (required for OCR)
 
-編輯 `android/app/build.gradle.kts` 的 `defaultConfig`：
+In `android/app/build.gradle.kts` → `defaultConfig`:
 
 ```kotlin
 minSdk = 24
@@ -67,22 +125,27 @@ ndk {
 }
 ```
 
-參考檔：`android/app/build.gradle.snippet.kts`
+See also: `android/app/build.gradle.snippet.kts`
 
-打包：
+### Run
+
+```bash
+# Debug (UI work)
+flutter run
+
+# Release on physical arm64 device (OCR)
+flutter run --release
+```
+
+### APK
 
 ```bash
 flutter build apk --split-per-abi --release
 ```
 
----
+### UI-only / no native OCR
 
-## OCR 說明
-
-- 預設使用 `paddle_ocr_flutter`（PP-OCRv5，約 +21MB 模型，完全離線）
-- **僅支援 Android arm64 真機**；x86 模擬器通常無法跑
-- 若要在沒有 native OCR 的環境開發 UI，把  
-  `lib/domain/services/ocr_service.dart` 裡的 provider 改成：
+In `lib/domain/services/ocr_service.dart`, switch the provider to the mock:
 
 ```dart
 final ocrServiceProvider = Provider<OcrService>((ref) {
@@ -92,16 +155,43 @@ final ocrServiceProvider = Provider<OcrService>((ref) {
 
 ---
 
-## 之後可加（Post-V1）
+## Demo checklist (capture)
 
-- 雲端同步 / 登入
-- 圖表分析
-- 預算目標
-- 多語系完整翻譯
+Use **Settings → Clear all data** before recording so the flow starts clean.
+
+### Suggested 30–60s video script
+
+1. **Home** — empty state, show week/month toggle (2s)
+2. **Scan** — open scanner FAB → pick/capture a receipt → wait for OCR (10–15s)
+3. **Confirm** — review prefilled amount/merchant/category → Save → “Saved” SnackBar (5s)
+4. **Home** — summary numbers + Top spending + recent row (5s)
+5. **Edit** — tap a transaction → change amount → Update (5s)
+6. **Delete** — trash icon → confirm → “Deleted” (5s)
+7. **Optional** — Settings → show version → Clear all data (5s)
+
+### Screenshots (4–5)
+
+| # | Screen | What to show |
+|---|--------|----------------|
+| 1 | Home (with data) | Week/month toggle, summary, Top spending bars |
+| 2 | Add / Edit | Form + category chips |
+| 3 | Scan result / prefill | OCR-filled fields before save |
+| 4 | Recent list | Several transactions |
+| 5 | Settings | Version + Clear all data |
+
+Store captures under something like `docs/demo/` (optional; not required to build).
 
 ---
 
-## 與舊 GitHub 專案的關係
+## Post-V1 ideas
 
-舊 repo（`PersonalFinanceTracker`）含 FastAPI、K8s、Redis 等，對 FYP V1 過重。  
-本目錄是 **從頭精簡** 的可維護版本，可直接作為新 GitHub repo 的起點。
+- Cloud sync / auth
+- Charts and budgets
+- Full i18n
+- iOS OCR path
+
+---
+
+## Relation to older repo
+
+The previous GitHub project (`PersonalFinanceTracker`) included FastAPI, Redis, and Kubernetes — too heavy for FYP V1. This tree is a **clean, offline-first rewrite** intended as the maintainable submission baseline.
