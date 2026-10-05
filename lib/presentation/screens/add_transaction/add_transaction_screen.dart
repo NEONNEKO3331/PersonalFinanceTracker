@@ -124,7 +124,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       }
       rootScaffoldMessengerKey.currentState?.showSnackBar(
         SnackBar(
-          content: Text(_isEdit ? 'Saved' : 'Saved'),
+          content: Text(_isEdit ? 'Updated' : 'Saved'),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
         ),

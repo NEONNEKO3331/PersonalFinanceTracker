@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../app/theme.dart';
 import '../../domain/entities/transaction.dart';
 
 class TransactionTile extends StatelessWidget {
@@ -18,13 +19,18 @@ class TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isExpense = transaction.type == TransactionType.expense;
-    final amountColor = isExpense ? Colors.redAccent : Colors.green;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final resolvedAmount = isDark
+        ? (isExpense ? const Color(0xFFEF9A9A) : const Color(0xFF81C784))
+        : (isExpense ? BeeColors.stingRed : BeeColors.nectarGreen);
     final prefix = isExpense ? '-' : '+';
     final currency = NumberFormat.currency(symbol: 'RM ', decimalDigits: 2);
     final catColor = Categories.color(transaction.category);
 
     return ListTile(
       onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       leading: CircleAvatar(
         backgroundColor: catColor.withValues(alpha: 0.15),
         child: Icon(
@@ -37,10 +43,18 @@ class TransactionTile extends StatelessWidget {
         transaction.merchant,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: scheme.onSurface,
+        ),
       ),
       subtitle: Text(
         '${Categories.displayName(transaction.category)} · '
         '${DateFormat('dd MMM yyyy').format(transaction.date)}',
+        style: TextStyle(
+          color: scheme.onSurface.withValues(alpha: 0.65),
+          fontSize: 12,
+        ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -48,13 +62,17 @@ class TransactionTile extends StatelessWidget {
           Text(
             '$prefix${currency.format(transaction.amount)}',
             style: TextStyle(
-              color: amountColor,
-              fontWeight: FontWeight.w600,
+              color: resolvedAmount,
+              fontWeight: FontWeight.w700,
             ),
           ),
           if (onDelete != null)
             IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
+              icon: Icon(
+                Icons.delete_outline,
+                size: 20,
+                color: scheme.onSurface.withValues(alpha: 0.55),
+              ),
               onPressed: onDelete,
             ),
         ],

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../app/theme.dart';
 import '../../../domain/entities/transaction.dart';
 import '../../providers/transaction_provider.dart';
+import '../../widgets/bee_brand.dart';
 import '../../widgets/transaction_tile.dart';
 
 class HomeScreen extends ConsumerWidget {
@@ -57,7 +59,7 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MoneyBee'),
+        title: const BeeAppTitle(subtitle: 'Track · Save · Thrive'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -76,10 +78,10 @@ class HomeScreen extends ConsumerWidget {
 
           return RefreshIndicator(
             onRefresh: () => notifier.refresh(),
+            color: BeeColors.honey,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
               children: [
-                // ── Period toggle ──
                 SegmentedButton<HomePeriod>(
                   segments: const [
                     ButtonSegment(
@@ -99,8 +101,6 @@ class HomeScreen extends ConsumerWidget {
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // ── Summary card ──
                 _SummaryCard(
                   periodLabel:
                       period == HomePeriod.week ? 'This week' : 'This month',
@@ -108,52 +108,53 @@ class HomeScreen extends ConsumerWidget {
                   expense: currency.format(summary.expense),
                   balance: currency.format(summary.balance),
                 ),
-                const SizedBox(height: 20),
-
-                // ── Top categories ──
+                const SizedBox(height: 22),
                 if (topCats.isNotEmpty) ...[
-                  Text(
-                    'Top spending',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
+                  const BeeSectionTitle(title: 'Top spending'),
+                  const SizedBox(height: 10),
                   _TopCategoriesCard(
                     items: topCats,
                     totalExpense: totalExpense,
                     currency: currency,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
                 ],
-
-                // ── Recent list ──
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Recent',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                BeeSectionTitle(
+                  title: 'Recent',
+                  trailing: Text(
+                    '${list.length} records',
+                    style: TextStyle(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.65),
+                      fontSize: 13,
                     ),
-                    Text('${list.length} records'),
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 if (list.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 48),
-                    child: Center(
-                      child: Text('No transactions yet.\nTap + to add one.'),
-                    ),
-                  )
+                  const _EmptyHive()
                 else
-                  ...list.map(
-                    (t) => TransactionTile(
-                      transaction: t,
-                      onTap: () => context.push('/add', extra: t),
-                      onDelete: () => _confirmDelete(context, ref, t),
+                  Card(
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < list.length; i++) ...[
+                          if (i > 0)
+                            Divider(
+                              height: 1,
+                              indent: 16,
+                              endIndent: 16,
+                              color: BeeColors.honey.withValues(alpha: 0.2),
+                            ),
+                          TransactionTile(
+                            transaction: list[i],
+                            onTap: () => context.push('/add', extra: list[i]),
+                            onDelete: () =>
+                                _confirmDelete(context, ref, list[i]),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
               ],
@@ -171,11 +172,12 @@ class HomeScreen extends ConsumerWidget {
             child: const Icon(Icons.document_scanner_outlined),
           ),
           const SizedBox(height: 12),
-          FloatingActionButton(
+          FloatingActionButton.extended(
             heroTag: 'add',
             tooltip: 'Add transaction',
             onPressed: () => context.push('/add'),
-            child: const Icon(Icons.add),
+            icon: const Icon(Icons.add),
+            label: const Text('Add'),
           ),
         ],
       ),
@@ -183,9 +185,41 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Summary card
-// ─────────────────────────────────────────────────────────────
+class _EmptyHive extends StatelessWidget {
+  const _EmptyHive();
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
+        child: Column(
+          children: [
+            const BeeMark(size: 48),
+            const SizedBox(height: 16),
+            Text(
+              'Your hive is empty',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: onSurface,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Tap + to add a transaction\nor scan a receipt.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: onSurface.withValues(alpha: 0.7),
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _SummaryCard extends StatelessWidget {
   final String periodLabel;
@@ -202,25 +236,46 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      color: scheme.primaryContainer.withValues(alpha: 0.45),
+    // Honey gradient stays bright — always use dark text on it.
+    const onHoney = BeeColors.charcoal;
+    const onHoneyMuted = BeeColors.hiveBrown;
+
+    return HoneyBanner(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              periodLabel,
-              style: Theme.of(context).textTheme.labelLarge,
+            Row(
+              children: [
+                const BeeMark(size: 22),
+                const SizedBox(width: 8),
+                Text(
+                  periodLabel,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: onHoney,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
+            const Text(
+              'Balance',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: onHoneyMuted,
+              ),
+            ),
             Text(
               balance,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: const TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                color: onHoney,
+                letterSpacing: -0.5,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -229,14 +284,24 @@ class _SummaryCard extends StatelessWidget {
                   child: _MiniStat(
                     label: 'Income',
                     value: income,
-                    color: Colors.green,
+                    color: BeeColors.nectarGreen,
+                    labelColor: onHoneyMuted,
                   ),
                 ),
+                Container(
+                  width: 1,
+                  height: 36,
+                  color: onHoney.withValues(alpha: 0.15),
+                ),
                 Expanded(
-                  child: _MiniStat(
-                    label: 'Expense',
-                    value: expense,
-                    color: Colors.redAccent,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: _MiniStat(
+                      label: 'Expense',
+                      value: expense,
+                      color: BeeColors.stingRed,
+                      labelColor: onHoneyMuted,
+                    ),
                   ),
                 ),
               ],
@@ -252,11 +317,13 @@ class _MiniStat extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final Color labelColor;
 
   const _MiniStat({
     required this.label,
     required this.value,
     required this.color,
+    this.labelColor = BeeColors.hiveBrown,
   });
 
   @override
@@ -264,13 +331,20 @@ class _MiniStat extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: labelColor,
+          ),
+        ),
         const SizedBox(height: 4),
         Text(
           value,
           style: TextStyle(
             color: color,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             fontSize: 16,
           ),
         ),
@@ -278,10 +352,6 @@ class _MiniStat extends StatelessWidget {
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────
-// Top spending categories (progress bars)
-// ─────────────────────────────────────────────────────────────
 
 class _TopCategoriesCard extends StatelessWidget {
   final List<({String category, double amount})> items;
@@ -296,17 +366,13 @@ class _TopCategoriesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Card(
-      elevation: 0,
-      color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
         child: Column(
           children: [
             for (var i = 0; i < items.length; i++) ...[
-              if (i > 0) const SizedBox(height: 12),
+              if (i > 0) const SizedBox(height: 14),
               _CategoryRow(
                 rank: i + 1,
                 category: items[i].category,
@@ -344,29 +410,29 @@ class _CategoryRow extends StatelessWidget {
     final color = Categories.color(category);
     final name = Categories.displayName(category);
     final pct = (fraction * 100).round();
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final muted = onSurface.withValues(alpha: 0.65);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Rank badge
         SizedBox(
           width: 28,
           child: Text(
             '#$rank',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: muted,
+              fontSize: 13,
+            ),
           ),
         ),
-        // Icon
         CircleAvatar(
           radius: 16,
           backgroundColor: color.withValues(alpha: 0.15),
           child: Icon(Categories.icon(category), color: color, size: 16),
         ),
         const SizedBox(width: 10),
-        // Name + bar
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,20 +444,23 @@ class _CategoryRow extends StatelessWidget {
                       name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: onSurface,
+                      ),
                     ),
                   ),
                   Text(
                     currency.format(amount),
                     style: TextStyle(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: color,
                       fontSize: 13,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 5),
               Row(
                 children: [
                   Expanded(
@@ -399,7 +468,7 @@ class _CategoryRow extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: fraction,
-                        minHeight: 6,
+                        minHeight: 7,
                         backgroundColor: color.withValues(alpha: 0.12),
                         valueColor: AlwaysStoppedAnimation(color),
                       ),
@@ -411,11 +480,11 @@ class _CategoryRow extends StatelessWidget {
                     child: Text(
                       '$pct%',
                       textAlign: TextAlign.right,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: muted,
+                      ),
                     ),
                   ),
                 ],

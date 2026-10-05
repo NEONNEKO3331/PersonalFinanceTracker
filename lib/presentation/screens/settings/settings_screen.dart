@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/theme.dart';
+import '../../providers/theme_provider.dart';
 import '../../providers/transaction_provider.dart';
+import '../../widgets/bee_brand.dart';
 
 /// Matches pubspec.yaml version field.
 const _appVersion = '1.0.0+1';
@@ -49,36 +52,115 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final iconColor = onSurface.withValues(alpha: 0.85);
+    final themeMode = ref.watch(themeModeProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('MoneyBee'),
-            subtitle: Text('V1 · Offline personal finance tracker'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const BeeMark(size: 44),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'MoneyBee',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18,
+                              color: onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'V1 · Offline personal finance tracker',
+                            style: TextStyle(
+                              color: onSurface.withValues(alpha: 0.7),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          const ListTile(
-            leading: Icon(Icons.tag),
-            title: Text('App version'),
-            subtitle: Text(_appVersion),
+
+          // ── Appearance ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              'Appearance',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: onSurface,
+                fontSize: 15,
+              ),
+            ),
           ),
-          const ListTile(
-            leading: Icon(Icons.document_scanner_outlined),
-            title: Text('OCR'),
-            subtitle: Text('On-device PaddleOCR (PP-OCRv5)'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(
+                  value: ThemeMode.system,
+                  label: Text('System'),
+                  icon: Icon(Icons.brightness_auto, size: 18),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.light,
+                  label: Text('Light'),
+                  icon: Icon(Icons.light_mode_outlined, size: 18),
+                ),
+                ButtonSegment(
+                  value: ThemeMode.dark,
+                  label: Text('Dark'),
+                  icon: Icon(Icons.dark_mode_outlined, size: 18),
+                ),
+              ],
+              selected: {themeMode},
+              onSelectionChanged: (set) {
+                ref.read(themeModeProvider.notifier).setMode(set.first);
+              },
+            ),
           ),
-          const ListTile(
-            leading: Icon(Icons.storage_outlined),
-            title: Text('Storage'),
-            subtitle: Text('Local SQLite only · no cloud sync in V1'),
+          const SizedBox(height: 8),
+          const Divider(indent: 16, endIndent: 16),
+
+          ListTile(
+            leading: Icon(Icons.tag, color: iconColor),
+            title: const Text('App version'),
+            subtitle: const Text(_appVersion),
           ),
-          const ListTile(
-            leading: Icon(Icons.privacy_tip_outlined),
-            title: Text('Privacy'),
-            subtitle: Text('Receipt images & data stay on this device'),
+          ListTile(
+            leading: Icon(Icons.document_scanner_outlined, color: iconColor),
+            title: const Text('OCR'),
+            subtitle: const Text('On-device PaddleOCR (PP-OCRv5)'),
           ),
-          const Divider(),
+          ListTile(
+            leading: Icon(Icons.storage_outlined, color: iconColor),
+            title: const Text('Storage'),
+            subtitle: const Text('Local SQLite only · no cloud sync in V1'),
+          ),
+          ListTile(
+            leading: Icon(Icons.privacy_tip_outlined, color: iconColor),
+            title: const Text('Privacy'),
+            subtitle: const Text('Receipt images & data stay on this device'),
+          ),
+          const Divider(indent: 16, endIndent: 16),
           ListTile(
             leading: Icon(
               Icons.delete_forever_outlined,
