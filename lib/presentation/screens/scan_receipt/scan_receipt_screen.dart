@@ -22,7 +22,14 @@ class _ScanReceiptScreenState extends ConsumerState<ScanReceiptScreen> {
   String? _error;
 
   Future<void> _pick(ImageSource source) async {
-    final file = await _picker.pickImage(source: source, imageQuality: 85);
+    // Higher quality + resolution helps PaddleOCR read digits (e.g. 4,962.00)
+    // on thermal bank slips. Cap size so OCR stays reasonably fast.
+    final file = await _picker.pickImage(
+      source: source,
+      imageQuality: 95,
+      maxWidth: 1920,
+      maxHeight: 2560,
+    );
     if (file == null) return;
     setState(() {
       _image = file;
@@ -158,6 +165,26 @@ class _ScanReceiptScreenState extends ConsumerState<ScanReceiptScreen> {
                       'Confidence',
                       '${(((_result!['confidence'] as num?) ?? 0) * 100).toStringAsFixed(0)}%',
                     ),
+                    // Debug: show raw OCR text so we can fix parsing
+                    if (_result!['rawText'] != null) ...[
+                      const SizedBox(height: 8),
+                      const Divider(),
+                      Text(
+                        'Raw OCR (debug)',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: Colors.grey,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        '${_result!['rawText']}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
