@@ -62,6 +62,11 @@ class HomeScreen extends ConsumerWidget {
         title: const BeeAppTitle(subtitle: 'Track · Save · Thrive'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'History',
+            onPressed: () => context.push('/history'),
+          ),
+          IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push('/settings'),
           ),
@@ -121,14 +126,11 @@ class HomeScreen extends ConsumerWidget {
                 ],
                 BeeSectionTitle(
                   title: 'Recent',
-                  trailing: Text(
-                    '${list.length} records',
-                    style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.65),
-                      fontSize: 13,
+                  trailing: TextButton(
+                    onPressed: () => context.push('/history'),
+                    child: Text(
+                      list.isEmpty ? 'History' : 'See all (${list.length})',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ),
@@ -139,7 +141,9 @@ class HomeScreen extends ConsumerWidget {
                   Card(
                     child: Column(
                       children: [
-                        for (var i = 0; i < list.length; i++) ...[
+                        for (var i = 0;
+                            i < list.length && i < 8;
+                            i++) ...[
                           if (i > 0)
                             Divider(
                               height: 1,

@@ -6,6 +6,7 @@ import '../presentation/screens/home/home_screen.dart';
 import '../presentation/screens/add_transaction/add_transaction_screen.dart';
 import '../presentation/screens/scan_receipt/scan_receipt_screen.dart';
 import '../presentation/screens/settings/settings_screen.dart';
+import '../presentation/screens/history/history_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -33,6 +34,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/settings',
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: '/history',
+      builder: (context, state) => const HistoryScreen(),
     ),
   ],
 );
