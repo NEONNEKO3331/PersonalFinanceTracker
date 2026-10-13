@@ -62,12 +62,8 @@ class HomeScreen extends ConsumerWidget {
         title: const BeeAppTitle(subtitle: 'Track · Save · Thrive'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.history),
-            tooltip: 'History',
-            onPressed: () => context.push('/history'),
-          ),
-          IconButton(
             icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
             onPressed: () => context.push('/settings'),
           ),
         ],
@@ -127,7 +123,7 @@ class HomeScreen extends ConsumerWidget {
                 BeeSectionTitle(
                   title: 'Recent',
                   trailing: TextButton(
-                    onPressed: () => context.push('/history'),
+                    onPressed: () => context.go('/history'),
                     child: Text(
                       list.isEmpty ? 'History' : 'See all (${list.length})',
                       style: const TextStyle(fontWeight: FontWeight.w600),
