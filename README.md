@@ -18,6 +18,9 @@ Offline-first personal finance tracker (FYP V1).
   - **Top spending** by category (up to 5, with share %)
   - Recent transaction list (latest 8) with **See all** → History
 - **History**: full list grouped by day, type filter (All / Expense / Income), search (merchant / note / category), edit & delete
+- **Analytics**: pie chart of expense by category, full breakdown, same week/month toggle
+- **Export**: this week / this month → `.xlsx` (Summary + Transactions sheets, share sheet)
+- Bottom nav: Home · History · Analytics · Export
 - Settings: app version, clear all data (demo reset)
 - SnackBars on save / update / delete
 - All data stays on device (SQLite)
@@ -29,7 +32,7 @@ Offline-first personal finance tracker (FYP V1).
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │  Presentation                                            │
-│  Home · History · Add/Edit · Scan · Settings             │
+│  Home · History · Analytics · Export · Add/Edit · Scan · Settings │
 │  Riverpod providers · widgets                            │
 └───────────────────────────┬─────────────────────────────┘
                             │
@@ -69,7 +72,7 @@ moneybee/
 │   │   └── repositories/
 │   └── presentation/
 │       ├── providers/
-│       ├── screens/         # home, history, add, scan, settings
+│       ├── screens/         # home, history, analytics, export, shell, add, scan, settings
 │       └── widgets/
 ├── android/                 # platform + NDK snippet
 ├── assets/images/
