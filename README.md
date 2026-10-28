@@ -1,99 +1,95 @@
 # MoneyBee
 
-Offline-first personal finance tracker (FYP V1).
+Offline-first personal finance tracker (FYP).
 
-**Stack:** Flutter · Drift/SQLite · on-device PaddleOCR · rule-based categories
+**Stack:** Flutter · Riverpod · Drift/SQLite · on-device PaddleOCR · rule-based categories · Firebase AI (Gemini) for monthly insight
 
-**Out of scope for V1:** backend, Redis, Kubernetes, cloud sync, accounts.
+**Core promise:** Log a transaction in a few taps, keep every receipt and amount on the device.
 
 ---
 
 ## Features
 
-- Manual add / edit / delete of income and expense
-- Receipt capture (camera or gallery) → on-device OCR → auto-fill merchant, amount, date, category
-- Home dashboard:
-  - **This week / This month** toggle
-  - Income · expense · balance summary
-  - **Top spending** by category (up to 5, with share %)
-  - Recent transaction list (latest 8) with **See all** → History
-- **History**: full list grouped by day, type filter (All / Expense / Income), search (merchant / note / category), edit & delete
-- **Analytics**: pie chart of expense by category, full breakdown, same week/month toggle
-- **Export**: this week / this month → `.xlsx` (Summary + Transactions sheets, share sheet)
-- Bottom nav: Home · History · Analytics · Export
-- Settings: app version, clear all data (demo reset)
-- SnackBars on save / update / delete
-- All data stays on device (SQLite)
+| Area | What it does |
+|------|----------------|
+| **Transactions** | Add / edit / delete income & expense. Manual form or OCR prefill. |
+| **Receipt OCR** | Camera or gallery → on-device PaddleOCR → merchant, amount, date, category suggestion. Tuned for MY bank-slip formats (e.g. `RM 4,962.00`). |
+| **Home** | Week / Month / Custom range. Income · expense · balance. Top spending categories. Recent (latest 8) + **See all**. |
+| **History** | Full list grouped by day. Filter by type (All / Expense / Income). Search merchant / note / category. Edit & delete. |
+| **Analytics** | Pie chart + category breakdown. Same period selector. **AI monthly insight** (Generate / Regenerate) via Firebase AI (Gemini). |
+| **Export** | Week / Month / Custom range → `.xlsx` (Summary + Transactions sheets) via share sheet. |
+| **Settings** | App version, clear all data (demo reset). |
+| **UX** | SnackBars on save / update / delete. Bee-themed UI (honey / cream / charcoal). English only. |
+
+All transaction data stays in local SQLite. OCR runs fully on-device. AI insight is the only network call (optional).
 
 ---
 
 ## Architecture
 
 ```text
-┌─────────────────────────────────────────────────────────┐
-│  Presentation                                            │
-│  Home · History · Analytics · Export · Add/Edit · Scan · Settings │
-│  Riverpod providers · widgets                            │
-└───────────────────────────┬─────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────┐
-│  Domain                                                  │
-│  Transaction entity · Categories                         │
-│  OcrService (Paddle / Mock) · CategoryService (rules)    │
-└───────────────────────────┬─────────────────────────────┘
-                            │
-┌───────────────────────────▼─────────────────────────────┐
-│  Data                                                    │
-│  TransactionRepository → AppDatabase (Drift / SQLite)    │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│  Presentation                                                │
+│  Shell (Home · History · Analytics · Export)                 │
+│  Add/Edit · Scan · Settings                                  │
+│  Riverpod providers · PeriodSelector · Bee widgets           │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│  Domain                                                      │
+│  Transaction · Categories                                    │
+│  OcrService (Paddle / Mock) · CategoryService (rules)        │
+│  ExportService · AiInsightService (Firebase AI / Gemini)     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│  Data                                                        │
+│  TransactionRepository → AppDatabase (Drift / SQLite)        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Flow (scan receipt):**
+**Scan flow**
 
 ```text
 Image → PaddleOCR (on-device) → text lines
-      → parse merchant / amount / date
-      → CategoryService.classify(text)
+      → parse merchant / amount / date (MY thousand separators)
+      → CategoryService.classify
       → prefill Add Transaction → user confirms → SQLite
 ```
 
-**Project layout:**
+**Project layout**
 
 ```text
-moneybee/
-├── lib/
-│   ├── main.dart
-│   ├── app/                 # theme, router
-│   ├── domain/
-│   │   ├── entities/        # Transaction, Categories
-│   │   └── services/        # OCR, category rules
-│   ├── data/
-│   │   ├── database/        # Drift schema
-│   │   └── repositories/
-│   └── presentation/
-│       ├── providers/
-│       ├── screens/         # home, history, analytics, export, shell, add, scan, settings
-│       └── widgets/
-├── android/                 # platform + NDK snippet
-├── assets/images/
-├── pubspec.yaml
-└── README.md
+lib/
+├── main.dart                 # Firebase + App Check init, ProviderScope
+├── app/                      # theme (BeeColors), router (StatefulShellRoute)
+├── domain/
+│   ├── entities/
+│   └── services/             # ocr, category, export, ai_insight
+├── data/
+│   ├── database/             # Drift schema
+│   └── repositories/
+└── presentation/
+    ├── providers/
+    ├── screens/              # home, history, analytics, export, shell, add, scan, settings
+    └── widgets/              # bee_brand, period_selector, transaction_tile
 ```
 
 ---
 
-## Tech highlights
+## Tech choices
 
 | Area | Choice | Why |
 |------|--------|-----|
-| UI | Flutter + Material 3 | Cross-platform, fast iteration |
-| State | Riverpod | Explicit providers, easy test hooks |
-| Storage | Drift + SQLite | Type-safe SQL, offline-first, no server |
-| OCR | PaddleOCR (PP-OCRv5) via `paddle_ocr_flutter` | Fully on-device, no API key / quota |
-| Category | Keyword rules (`CategoryService`) | Lightweight, works offline, no ML model size |
-| Privacy | Local only | Receipts and amounts never leave the phone |
-
-**Design goals for V1:** small surface area, demo-ready in one device, no cloud dependency.
+| UI | Flutter + Material 3 + bee theme | Fast iteration, consistent look |
+| State | Riverpod | Explicit providers, easy to reason about |
+| Storage | Drift + SQLite | Type-safe, offline-first, no server |
+| OCR | PaddleOCR (via `paddle_ocr_flutter`) | Fully on-device, no API key / quota |
+| Category | Keyword rules | Lightweight, works offline |
+| Charts | fl_chart | Pie + breakdown on Analytics |
+| Export | excel + share_plus | XLSX with Summary + Transactions |
+| AI insight | Firebase AI (Gemini) | Optional monthly narrative; only network feature |
+| Privacy | Local-first | Receipts & amounts never leave the phone by default |
 
 ---
 
@@ -102,23 +98,40 @@ moneybee/
 ### Prerequisites
 
 - Flutter SDK `>=3.3`
-- Android device **arm64** for real OCR (emulator x86 usually cannot load the native model)
+- Android **arm64** device for real OCR (most x86 emulators cannot load the native model)
+- Firebase project (only needed for AI insight)
 
 ### First-time setup
 
 ```bash
-cd moneybee
-
-# Generate android/ios folders without overwriting lib/
-flutter create . --project-name moneybee --org com.moneybee
+git clone https://github.com/NEONNEKO3331/PersonalFinanceTracker.git
+cd PersonalFinanceTracker
 
 flutter pub get
-
-# Generate Drift code
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-### Android config (required for OCR)
+### Firebase (AI insight only)
+
+`google-services.json` and `lib/firebase_options.dart` are **not** committed (security).
+
+1. Create a Firebase project and enable the Gemini / Firebase AI product you use.
+2. Add an Android app with the same package name as this project.
+3. Download `google-services.json` → place at `android/app/google-services.json`.
+4. Generate options (FlutterFire CLI recommended):
+
+   ```bash
+   dart pub global activate flutterfire_cli
+   flutterfire configure
+   ```
+
+   Or restore your private `lib/firebase_options.dart` locally.
+
+5. App Check is initialized with the debug provider on Android in `main.dart`. Use a real provider for release builds.
+
+Without these files the rest of the app (transactions, OCR, analytics charts, export) still runs; only the AI insight card will fail until Firebase is configured.
+
+### Android OCR notes
 
 In `android/app/build.gradle.kts` → `defaultConfig`:
 
@@ -129,15 +142,15 @@ ndk {
 }
 ```
 
-See also: `android/app/build.gradle.snippet.kts`
+If you hit Kotlin incremental / daemon lock issues on Windows, the repo includes `android/gradle.properties` settings that disable incremental compilation and parallel/daemon where needed.
 
 ### Run
 
 ```bash
-# Debug (UI work)
+# Debug (UI / most features)
 flutter run
 
-# Release on physical arm64 device (OCR)
+# Release on physical arm64 device (recommended for OCR)
 flutter run --release
 ```
 
@@ -149,7 +162,7 @@ flutter build apk --split-per-abi --release
 
 ### UI-only / no native OCR
 
-In `lib/domain/services/ocr_service.dart`, switch the provider to the mock:
+In the OCR provider, switch to the mock:
 
 ```dart
 final ocrServiceProvider = Provider<OcrService>((ref) {
@@ -159,43 +172,54 @@ final ocrServiceProvider = Provider<OcrService>((ref) {
 
 ---
 
-## Demo checklist (capture)
+## Period selection
+
+Home, Analytics, and Export share the same period model:
+
+- **This week**
+- **This month**
+- **Custom** (date range picker)
+
+Implemented via `HomePeriod` + `customDateRangeProvider` and the shared `PeriodSelector` widget.
+
+---
+
+## Demo checklist
 
 Use **Settings → Clear all data** before recording so the flow starts clean.
 
-### Suggested 30–60s video script
+### Suggested 30–60s video
 
-1. **Home** — empty state, show week/month toggle (2s)
-2. **Scan** — open scanner FAB → pick/capture a receipt → wait for OCR (10–15s)
-3. **Confirm** — review prefilled amount/merchant/category → Save → “Saved” SnackBar (5s)
-4. **Home** — summary numbers + Top spending + recent row (5s)
-5. **Edit** — tap a transaction → change amount → Update (5s)
-6. **Delete** — trash icon → confirm → “Deleted” (5s)
-7. **Optional** — Settings → show version → Clear all data (5s)
+1. Home — empty / with data, period toggle (week → month → custom)
+2. Scan — FAB → capture/pick receipt → OCR → prefilled form → Save
+3. Home — updated summary + Top spending + recent row
+4. History — day groups, filter, search
+5. Analytics — pie chart + Generate AI insight
+6. Export — pick range → share XLSX
+7. Optional — Settings → version + clear data
 
 ### Screenshots (4–5)
 
-| # | Screen | What to show |
-|---|--------|----------------|
-| 1 | Home (with data) | Week/month toggle, summary, Top spending bars |
-| 2 | Add / Edit | Form + category chips |
-| 3 | Scan result / prefill | OCR-filled fields before save |
-| 4 | Recent list | Several transactions |
-| 5 | Settings | Version + Clear all data |
-
-Store captures under something like `docs/demo/` (optional; not required to build).
+| # | Screen | Show |
+|---|--------|------|
+| 1 | Home | Period selector, summary, top categories, recent |
+| 2 | Scan / Add | OCR-prefilled form |
+| 3 | History | Grouped list + filter/search |
+| 4 | Analytics | Pie + AI insight card |
+| 5 | Export | Range + share result |
 
 ---
 
-## Post-V1 ideas
+## Out of scope (current V1)
 
-- Cloud sync / auth
-- Charts and budgets
-- Full i18n
+- Backend API / Redis / Kubernetes (removed from earlier over-engineered version)
+- Multi-device sync / accounts
+- Full i18n (English only for now)
 - iOS OCR path
+- Budgets, recurring transactions, PDF export
 
 ---
 
-## Relation to older repo
+## License / academic use
 
-The previous GitHub project (`PersonalFinanceTracker`) included FastAPI, Redis, and Kubernetes — too heavy for FYP V1. This tree is a **clean, offline-first rewrite** intended as the maintainable submission baseline.
+FYP project. Feel free to fork for learning; keep Firebase credentials out of any public fork.
