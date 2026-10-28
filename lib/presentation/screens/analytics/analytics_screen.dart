@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
+import 'package:firebase_ai/firebase_ai.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,10 +10,11 @@ import 'package:intl/intl.dart';
 
 import '../../../app/theme.dart';
 import '../../../domain/entities/transaction.dart';
+import '../../../domain/services/ai_insight_service.dart';
 import '../../providers/transaction_provider.dart';
 import '../../widgets/bee_brand.dart';
 
-/// Detailed spend analysis: pie chart + category breakdown + period toggle.
+/// Detailed spend analysis: pie chart + category breakdown + period toggle + AI insight.
 class AnalyticsScreen extends ConsumerWidget {
   const AnalyticsScreen({super.key});
 
@@ -38,7 +43,6 @@ class AnalyticsScreen extends ConsumerWidget {
         data: (list) {
           final filtered = notifier.filterByPeriod(list, period);
           final summary = notifier.summary(filtered);
-          // All expense categories (no limit) for full pie.
           final catTotals = notifier.topExpenseCategories(filtered, limit: 99);
           final totalExpense = summary.expense;
 
@@ -157,6 +161,17 @@ class AnalyticsScreen extends ConsumerWidget {
                   ),
                 ),
               ],
+              const SizedBox(height: 22),
+              const BeeSectionTitle(title: 'AI monthly insight'),
+              const SizedBox(height: 10),
+              _AiInsightCard(
+                income: summary.income,
+                expense: summary.expense,
+                balance: summary.balance,
+                categoryTotals: {
+                  for (final c in catTotals) c.category: c.amount,
+                },
+              ),
             ],
           );
         },
@@ -440,4 +455,249 @@ class _BreakdownRow extends StatelessWidget {
       ],
     );
   }
+}
+
+class _AiInsightCard extends StatefulWidget {
+  final double income;
+  final double expense;
+  final double balance;
+  final Map<String, double> categoryTotals;
+
+  const _AiInsightCard({
+    required this.income,
+    required this.expense,
+    required this.balance,
+    required this.categoryTotals,
+  });
+
+  @override
+  State<_AiInsightCard> createState() => _AiInsightCardState();
+}
+
+class _AiInsightCardState extends State<_AiInsightCard> {
+  bool _loading = false;
+  String? _insight;
+  String? _error;
+
+  Future<void> _generate() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final text = await AiInsightService().monthlyInsight(
+        income: widget.income,
+        expense: widget.expense,
+        balance: widget.balance,
+        categoryTotals: widget.categoryTotals,
+      );
+      if (!mounted) return;
+      setState(() {
+        _insight = text;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = _describeError(error);
+        _loading = false;
+      });
+    }
+  }
+
+  String _describeError(Object error) {
+    if (error is InvalidApiKey) {
+      return 'API key rejected\n${error.message}';
+    }
+    if (error is ServiceApiNotEnabled) {
+      return 'Firebase AI is not enabled\n${error.message}';
+    }
+    if (error is UnsupportedUserLocation) {
+      return 'Location not supported\n${error.message}';
+    }
+    if (error is QuotaExceeded) {
+      return 'AI quota exceeded\n${error.message}';
+    }
+    if (error is ServerException) {
+      return 'AI service error\n${error.message}';
+    }
+    if (error is FirebaseAIException) {
+      return 'Firebase AI error\n${error.message}';
+    }
+    if (error is FirebaseException) {
+      return 'Firebase error (${error.plugin}, ${error.code})\n${error.message}';
+    }
+    if (error is TimeoutException) {
+      return 'Request timed out\n${error.message ?? error}';
+    }
+    return '${error.runtimeType}\n$error';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final empty = widget.expense == 0 && widget.income == 0;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Uses this period’s totals only. Needs internet.',
+              style: TextStyle(
+                fontSize: 12,
+                color: onSurface.withValues(alpha: 0.55),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_insight != null) ...[
+              _buildInsight(_insight!, onSurface),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _generate,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Regenerate'),
+              ),
+            ] else ...[
+              if (_error != null) ...[
+                Text(
+                  _error!,
+                  style: TextStyle(color: BeeColors.stingRed, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+              ],
+              FilledButton.icon(
+                onPressed: empty ? null : _generate,
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('Generate AI insight'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInsight(String text, Color onSurface) {
+    final sections = <_InsightSection>[
+      const _InsightSection(
+        title: 'Overview',
+        icon: Icons.insights_outlined,
+        color: BeeColors.honey,
+        labels: ['overview'],
+      ),
+      const _InsightSection(
+        title: 'Top spending pattern',
+        icon: Icons.pie_chart_outline,
+        color: BeeColors.stingRed,
+        labels: ['top spending pattern', 'spending pattern'],
+      ),
+      const _InsightSection(
+        title: 'What to watch',
+        icon: Icons.visibility_outlined,
+        color: BeeColors.stingRed,
+        labels: ['what to watch', 'watch out', 'risk'],
+      ),
+      const _InsightSection(
+        title: 'Next month tip',
+        icon: Icons.lightbulb_outline,
+        color: BeeColors.nectarGreen,
+        labels: ['next month tip', 'practical tip', 'tip'],
+      ),
+    ];
+
+    final parsed = <String, String>{};
+    String? currentKey;
+    for (final line in text.split('\n')) {
+      final cleaned = line
+          .trim()
+          .replaceFirst(RegExp(r'^\d+[.)]\s*'), '')
+          .replaceAll('*', '');
+      final colon = cleaned.indexOf(':');
+      final label = colon < 0
+          ? ''
+          : cleaned.substring(0, colon).trim().toLowerCase();
+      final section = sections.where((item) => item.labels.contains(label));
+      if (section.isNotEmpty) {
+        currentKey = section.first.title;
+        parsed[currentKey] = cleaned.substring(colon + 1).trim();
+      } else if (currentKey != null && cleaned.isNotEmpty) {
+        parsed[currentKey] = '${parsed[currentKey]} $cleaned'.trim();
+      }
+    }
+
+    if (parsed.isEmpty) {
+      return Text(
+        text,
+        style: TextStyle(
+          height: 1.5,
+          color: onSurface.withValues(alpha: 0.9),
+        ),
+      );
+    }
+
+    final visibleSections = sections
+        .where((section) => parsed[section.title]?.isNotEmpty ?? false)
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < visibleSections.length; i++) ...[
+          if (i > 0) const Divider(height: 20),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(visibleSections[i].icon,
+                  size: 20, color: visibleSections[i].color),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      visibleSections[i].title,
+                      style: TextStyle(
+                        color: visibleSections[i].color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      parsed[visibleSections[i].title]!,
+                      style: TextStyle(
+                        height: 1.45,
+                        color: onSurface.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InsightSection {
+  final String title;
+  final IconData icon;
+  final Color color;
+  final List<String> labels;
+
+  const _InsightSection({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.labels,
+  });
 }

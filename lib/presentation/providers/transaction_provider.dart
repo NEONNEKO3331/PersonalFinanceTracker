@@ -74,7 +74,9 @@ class TransactionsNotifier extends AsyncNotifier<List<Transaction>> {
     final weekday = n.weekday; // 1 = Mon … 7 = Sun
     final startOfWeek = DateTime(n.year, n.month, n.day)
         .subtract(Duration(days: weekday - 1));
-    return list.where((t) => !t.date.isBefore(startOfWeek)).toList();
+    return list
+        .where((t) => !t.date.isBefore(startOfWeek) && !t.date.isAfter(n))
+        .toList();
   }
 
   /// Income / expense / balance for a filtered list.
