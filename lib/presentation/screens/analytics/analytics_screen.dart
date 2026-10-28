@@ -13,6 +13,7 @@ import '../../../domain/entities/transaction.dart';
 import '../../../domain/services/ai_insight_service.dart';
 import '../../providers/transaction_provider.dart';
 import '../../widgets/bee_brand.dart';
+import '../../widgets/period_selector.dart';
 
 /// Detailed spend analysis: pie chart + category breakdown + period toggle + AI insight.
 class AnalyticsScreen extends ConsumerWidget {
@@ -22,6 +23,7 @@ class AnalyticsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncTx = ref.watch(transactionsProvider);
     final period = ref.watch(homePeriodProvider);
+    final customRange = ref.watch(customDateRangeProvider);
     final currency = NumberFormat.currency(symbol: 'RM ', decimalDigits: 2);
     final notifier = ref.read(transactionsProvider.notifier);
     final onSurface = Theme.of(context).colorScheme.onSurface;
@@ -41,7 +43,11 @@ class AnalyticsScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (list) {
-          final filtered = notifier.filterByPeriod(list, period);
+          final filtered = notifier.filterByPeriod(
+            list,
+            period,
+            customRange: customRange,
+          );
           final summary = notifier.summary(filtered);
           final catTotals = notifier.topExpenseCategories(filtered, limit: 99);
           final totalExpense = summary.expense;
@@ -49,24 +55,7 @@ class AnalyticsScreen extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
-              SegmentedButton<HomePeriod>(
-                segments: const [
-                  ButtonSegment(
-                    value: HomePeriod.week,
-                    label: Text('This week'),
-                    icon: Icon(Icons.view_week_outlined, size: 18),
-                  ),
-                  ButtonSegment(
-                    value: HomePeriod.month,
-                    label: Text('This month'),
-                    icon: Icon(Icons.calendar_month_outlined, size: 18),
-                  ),
-                ],
-                selected: {period},
-                onSelectionChanged: (s) {
-                  ref.read(homePeriodProvider.notifier).state = s.first;
-                },
-              ),
+              const PeriodSelector(),
               const SizedBox(height: 16),
               _SummaryStrip(
                 income: currency.format(summary.income),

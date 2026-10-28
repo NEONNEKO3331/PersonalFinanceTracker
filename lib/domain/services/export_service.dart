@@ -107,17 +107,36 @@ class ExportService {
   );
 
   /// Returns absolute path of the written .xlsx file.
+  ///
+  /// Prefer passing [periodLabel] / [periodDetail] / [fileStamp] directly.
+  /// The [period] + optional [customRange] overload is kept for convenience.
   Future<String> exportToXlsx({
     required List<Transaction> transactions,
-    required HomePeriod period,
+    HomePeriod? period,
+    DateRange? customRange,
+    String? periodLabel,
+    String? periodDetail,
+    String? fileStamp,
     DateTime? now,
   }) async {
     final n = now ?? DateTime.now();
-    final periodLabel = period == HomePeriod.week ? 'This week' : 'This month';
-    final periodDetail = _periodDetail(period, n);
-    final fileStamp = period == HomePeriod.week
-        ? '${DateFormat('yyyy-MM-dd').format(n)}_week'
-        : DateFormat('yyyy-MM').format(n);
+    final resolvedPeriod = period ?? HomePeriod.month;
+    final label = periodLabel ??
+        (resolvedPeriod == HomePeriod.week
+            ? 'This week'
+            : resolvedPeriod == HomePeriod.month
+                ? 'This month'
+                : 'Custom range');
+    final detail = periodDetail ??
+        (customRange != null
+            ? customRange.label
+            : _periodDetail(resolvedPeriod, n));
+    final stamp = fileStamp ??
+        (resolvedPeriod == HomePeriod.week
+            ? '${DateFormat('yyyy-MM-dd').format(n)}_week'
+            : resolvedPeriod == HomePeriod.custom && customRange != null
+                ? customRange.fileStamp
+                : DateFormat('yyyy-MM').format(n));
 
     final sorted = List<Transaction>.from(transactions)
       ..sort((a, b) {
@@ -148,8 +167,8 @@ class ExportService {
     _buildLedgerSheet(
       excel['Income & Expense'],
       sorted: sorted,
-      periodLabel: periodLabel,
-      periodDetail: periodDetail,
+      periodLabel: label,
+      periodDetail: detail,
       generatedAt: n,
       income: income,
       expense: expense,
@@ -158,8 +177,8 @@ class ExportService {
 
     _buildSummarySheet(
       excel['Summary'],
-      periodLabel: periodLabel,
-      periodDetail: periodDetail,
+      periodLabel: label,
+      periodDetail: detail,
       generatedAt: n,
       income: income,
       expense: expense,
@@ -174,7 +193,7 @@ class ExportService {
     }
 
     final dir = await getTemporaryDirectory();
-    final filePath = p.join(dir.path, 'MoneyBee_$fileStamp.xlsx');
+    final filePath = p.join(dir.path, 'MoneyBee_$stamp.xlsx');
     await File(filePath).writeAsBytes(bytes, flush: true);
     return filePath;
   }
@@ -182,6 +201,9 @@ class ExportService {
   String _periodDetail(HomePeriod period, DateTime n) {
     if (period == HomePeriod.month) {
       return DateFormat('MMMM yyyy').format(n);
+    }
+    if (period == HomePeriod.custom) {
+      return '';
     }
     final weekday = n.weekday;
     final start = DateTime(n.year, n.month, n.day)

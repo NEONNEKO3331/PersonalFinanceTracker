@@ -8,6 +8,7 @@ import '../../../app/theme.dart';
 import '../../../domain/services/export_service.dart';
 import '../../providers/transaction_provider.dart';
 import '../../widgets/bee_brand.dart';
+import '../../widgets/period_selector.dart';
 
 class ExportScreen extends ConsumerStatefulWidget {
   const ExportScreen({super.key});
@@ -20,7 +21,10 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   bool _exporting = false;
   String? _lastPath;
 
-  Future<void> _export(HomePeriod period) async {
+  Future<void> _export(
+    HomePeriod period, {
+    DateRange? customRange,
+  }) async {
     if (_exporting) return;
     setState(() {
       _exporting = true;
@@ -29,18 +33,22 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
     try {
       final list = ref.read(transactionsProvider).valueOrNull ?? [];
-      final filtered =
-          ref.read(transactionsProvider.notifier).filterByPeriod(list, period);
+      final notifier = ref.read(transactionsProvider.notifier);
+      final filtered = notifier.filterByPeriod(
+        list,
+        period,
+        customRange: customRange,
+      );
+
+      final label = notifier.periodLabel(period, customRange: customRange);
+      final detail =
+          notifier.periodDetail(period, customRange: customRange);
 
       if (filtered.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                period == HomePeriod.week
-                    ? 'No transactions this week'
-                    : 'No transactions this month',
-              ),
+              content: Text('No transactions for $label'),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -48,16 +56,24 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         return;
       }
 
+      final stamp = period == HomePeriod.custom && customRange != null
+          ? customRange.fileStamp
+          : period == HomePeriod.week
+              ? '${DateFormat('yyyy-MM-dd').format(DateTime.now())}_week'
+              : DateFormat('yyyy-MM').format(DateTime.now());
+
       final path = await ExportService().exportToXlsx(
         transactions: filtered,
         period: period,
+        customRange: customRange,
+        periodLabel: label,
+        periodDetail: detail,
+        fileStamp: stamp,
       );
 
       await Share.shareXFiles(
         [XFile(path)],
-        subject: period == HomePeriod.week
-            ? 'MoneyBee — this week'
-            : 'MoneyBee — this month',
+        subject: 'MoneyBee — $label',
         text: 'MoneyBee transaction export',
       );
 
@@ -88,9 +104,49 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     }
   }
 
+  Future<void> _pickExportStart() async {
+    final current = ref.read(customDateRangeProvider);
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current.startDay,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year, now.month, now.day),
+      helpText: 'Start date',
+    );
+    if (picked == null) return;
+    final start = DateTime(picked.year, picked.month, picked.day);
+    var end = current.endDay;
+    if (end.isBefore(start)) {
+      end = DateTime(start.year, start.month, start.day, 23, 59, 59, 999);
+    }
+    ref.read(customDateRangeProvider.notifier).state = DateRange(start, end);
+  }
+
+  Future<void> _pickExportEnd() async {
+    final current = ref.read(customDateRangeProvider);
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(
+        current.end.year,
+        current.end.month,
+        current.end.day,
+      ),
+      firstDate: current.startDay,
+      lastDate: DateTime(now.year, now.month, now.day),
+      helpText: 'End date',
+    );
+    if (picked == null) return;
+    final end = DateTime(picked.year, picked.month, picked.day);
+    ref.read(customDateRangeProvider.notifier).state =
+        DateRange(current.startDay, end);
+  }
+
   @override
   Widget build(BuildContext context) {
     final asyncTx = ref.watch(transactionsProvider);
+    final customRange = ref.watch(customDateRangeProvider);
     final notifier = ref.read(transactionsProvider.notifier);
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final currency = NumberFormat.currency(symbol: 'RM ', decimalDigits: 2);
@@ -112,8 +168,14 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         data: (list) {
           final weekList = notifier.filterByPeriod(list, HomePeriod.week);
           final monthList = notifier.filterByPeriod(list, HomePeriod.month);
+          final customList = notifier.filterByPeriod(
+            list,
+            HomePeriod.custom,
+            customRange: customRange,
+          );
           final weekSum = notifier.summary(weekList);
           final monthSum = notifier.summary(monthList);
+          final customSum = notifier.summary(customList);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -149,6 +211,21 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                 balance: currency.format(monthSum.balance),
                 busy: _exporting,
                 onExport: () => _export(HomePeriod.month),
+              ),
+              const SizedBox(height: 12),
+              _CustomRangeCard(
+                range: customRange,
+                count: customList.length,
+                income: currency.format(customSum.income),
+                expense: currency.format(customSum.expense),
+                balance: currency.format(customSum.balance),
+                busy: _exporting,
+                onPickStart: _pickExportStart,
+                onPickEnd: _pickExportEnd,
+                onExport: () => _export(
+                  HomePeriod.custom,
+                  customRange: customRange,
+                ),
               ),
               if (_lastPath != null) ...[
                 const SizedBox(height: 20),
@@ -248,49 +325,25 @@ class _PeriodCard extends StatelessWidget {
                   '$count tx',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 12,
+                    fontSize: 13,
                     color: onSurface.withValues(alpha: 0.55),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            _MiniStatRow(income: income, expense: expense, balance: balance),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _Mini(
-                    label: 'Income',
-                    value: income,
-                    color: BeeColors.nectarGreen,
-                  ),
-                ),
-                Expanded(
-                  child: _Mini(
-                    label: 'Expense',
-                    value: expense,
-                    color: BeeColors.stingRed,
-                  ),
-                ),
-                Expanded(
-                  child: _Mini(
-                    label: 'Balance',
-                    value: balance,
-                    color: BeeColors.honey,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
             FilledButton.icon(
-              onPressed: busy || count == 0 ? null : onExport,
+              onPressed: busy ? null : onExport,
               icon: busy
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 16,
+                      height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.file_download_outlined),
-              label: Text(busy ? 'Exporting…' : 'Export .xlsx'),
+                  : const Icon(Icons.file_download_outlined, size: 18),
+              label: Text(busy ? 'Exporting…' : 'Export XLSX'),
             ),
           ],
         ),
@@ -299,21 +352,131 @@ class _PeriodCard extends StatelessWidget {
   }
 }
 
-class _Mini extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
+class _CustomRangeCard extends StatelessWidget {
+  final DateRange range;
+  final int count;
+  final String income;
+  final String expense;
+  final String balance;
+  final bool busy;
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+  final VoidCallback onExport;
 
-  const _Mini({
-    required this.label,
-    required this.value,
-    required this.color,
+  const _CustomRangeCard({
+    required this.range,
+    required this.count,
+    required this.income,
+    required this.expense,
+    required this.balance,
+    required this.busy,
+    required this.onPickStart,
+    required this.onPickEnd,
+    required this.onExport,
   });
 
   @override
   Widget build(BuildContext context) {
-    final muted =
-        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6);
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.date_range_outlined,
+                    color: BeeColors.honey, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Custom range',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: onSurface,
+                    ),
+                  ),
+                ),
+                Text(
+                  '$count tx',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: onSurface.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                DateChipButton(
+                  label: 'From',
+                  date: range.start,
+                  onTap: onPickStart,
+                ),
+                const SizedBox(width: 10),
+                DateChipButton(
+                  label: 'To',
+                  date: range.end,
+                  onTap: onPickEnd,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            _MiniStatRow(income: income, expense: expense, balance: balance),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: busy ? null : onExport,
+              icon: busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.file_download_outlined, size: 18),
+              label: Text(busy ? 'Exporting…' : 'Export XLSX'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniStatRow extends StatelessWidget {
+  final String income;
+  final String expense;
+  final String balance;
+
+  const _MiniStatRow({
+    required this.income,
+    required this.expense,
+    required this.balance,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Row(
+      children: [
+        Expanded(
+          child: _stat('Income', income, BeeColors.nectarGreen, onSurface),
+        ),
+        Expanded(
+          child: _stat('Expense', expense, Colors.redAccent, onSurface),
+        ),
+        Expanded(
+          child: _stat('Balance', balance, BeeColors.honey, onSurface),
+        ),
+      ],
+    );
+  }
+
+  Widget _stat(String label, String value, Color color, Color onSurface) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -322,17 +485,15 @@ class _Mini extends StatelessWidget {
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: muted,
+            color: onSurface.withValues(alpha: 0.5),
           ),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
           style: TextStyle(
+            fontSize: 13,
             fontWeight: FontWeight.w800,
-            fontSize: 12,
             color: color,
           ),
         ),
