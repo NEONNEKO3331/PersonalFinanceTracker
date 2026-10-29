@@ -1,10 +1,8 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../app/theme.dart';
 
-/// App bar brand: honeycomb bee mark + MoneyBee wordmark.
+/// App bar brand: app icon + MoneyBee wordmark.
 class BeeAppTitle extends StatelessWidget {
   final String subtitle;
 
@@ -50,102 +48,34 @@ class BeeAppTitle extends StatelessWidget {
   }
 }
 
-/// Honeycomb + bee glyph (no image asset required).
+/// MoneyBee mark — same asset as the launcher icon.
 class BeeMark extends StatelessWidget {
   final double size;
 
   const BeeMark({super.key, this.size = 32});
 
+  static const String assetPath = 'assets/icon/app_icon.png';
+
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(painter: _BeeMarkPainter()),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(size * 0.22),
+      child: Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, __, ___) => Container(
+          width: size,
+          height: size,
+          color: BeeColors.honey,
+          alignment: Alignment.center,
+          child: Icon(Icons.hive_outlined, size: size * 0.55, color: BeeColors.charcoal),
+        ),
+      ),
     );
   }
-}
-
-class _BeeMarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final cx = w / 2;
-    final cy = h / 2;
-
-    final hex = Path();
-    final r = w * 0.46;
-    for (var i = 0; i < 6; i++) {
-      final angle = (i * 60.0 - 30.0) * math.pi / 180.0;
-      final x = cx + r * math.cos(angle);
-      final y = cy + r * math.sin(angle);
-      if (i == 0) {
-        hex.moveTo(x, y);
-      } else {
-        hex.lineTo(x, y);
-      }
-    }
-    hex.close();
-
-    canvas.drawPath(hex, Paint()..color = BeeColors.honey);
-    canvas.drawPath(
-      hex,
-      Paint()
-        ..color = BeeColors.amberDeep
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2,
-    );
-
-    final body = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(cx, cy + h * 0.04),
-        width: w * 0.34,
-        height: h * 0.42,
-      ),
-      const Radius.circular(8),
-    );
-    canvas.drawRRect(body, Paint()..color = BeeColors.charcoal);
-
-    canvas.save();
-    canvas.clipRRect(body);
-    final stripePaint = Paint()..color = BeeColors.pollen;
-    for (var i = 0; i < 3; i++) {
-      final y = cy - h * 0.08 + i * h * 0.12;
-      canvas.drawRect(
-        Rect.fromLTWH(cx - w * 0.2, y, w * 0.4, h * 0.05),
-        stripePaint,
-      );
-    }
-    canvas.restore();
-
-    canvas.drawCircle(
-      Offset(cx, cy - h * 0.18),
-      w * 0.12,
-      Paint()..color = BeeColors.charcoal,
-    );
-
-    final wingPaint = Paint()..color = Colors.white.withValues(alpha: 0.88);
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(cx - w * 0.22, cy - h * 0.02),
-        width: w * 0.22,
-        height: h * 0.28,
-      ),
-      wingPaint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(cx + w * 0.22, cy - h * 0.02),
-        width: w * 0.22,
-        height: h * 0.28,
-      ),
-      wingPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// Section title with honey accent bar.
