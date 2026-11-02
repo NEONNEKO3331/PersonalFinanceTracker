@@ -8,17 +8,37 @@ import 'presentation/providers/theme_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
 import 'firebase_options.dart';
+import 'package:flutter/foundation.dart'; // 為了 kReleaseMode
 
 /// Root messenger so SnackBars survive navigation (e.g. after Save → go home).
 final rootScaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  /*
   await FirebaseAppCheck.instance.activate(
-  providerAndroid: const AndroidDebugProvider(), // 本地调试
-  providerApple: const AppleDebugProvider(),     // iOS 调试用
+    providerAndroid: kReleaseMode
+      ? const AndroidPlayIntegrityProvider()
+      : const AndroidDebugProvider(
+          debugToken: '',
+        ),         // debug / 測試
+    providerApple: kReleaseMode
+        ? const AppleAppAttestProvider()         // release (或 AppleDeviceCheckProvider())
+        : const AppleDebugProvider(),            // debug
+  );
+  */
+  await FirebaseAppCheck.instance.activate(
+  providerAndroid: const AndroidDebugProvider(
+    debugToken: 'YourDebugTokenHere', // Replace with your actual debug token
+  ),
+  providerApple: const AppleDebugProvider(),
 );
+
   runApp(const ProviderScope(child: MoneyBeeApp()));
 }
 

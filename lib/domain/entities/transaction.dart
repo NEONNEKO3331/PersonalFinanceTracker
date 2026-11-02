@@ -44,6 +44,33 @@ class Transaction {
       createdAt: createdAt ?? this.createdAt,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'amount': amount,
+        'category': category,
+        'date': date.toIso8601String(),
+        'merchant': merchant,
+        'note': note,
+        'type': type.name,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory Transaction.fromJson(Map<String, dynamic> json) {
+    final typeStr = (json['type'] as String?)?.toLowerCase() ?? 'expense';
+    return Transaction(
+      id: json['id'] as String,
+      amount: (json['amount'] as num).toDouble(),
+      category: json['category'] as String,
+      date: DateTime.parse(json['date'] as String),
+      merchant: (json['merchant'] as String?) ?? '',
+      note: json['note'] as String?,
+      type: typeStr == 'income' ? TransactionType.income : TransactionType.expense,
+      createdAt: DateTime.parse(
+        (json['createdAt'] as String?) ?? json['date'] as String,
+      ),
+    );
+  }
 }
 
 /// Expense / income category keys used across the app.

@@ -1,6 +1,10 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/theme.dart';
+import '../../../domain/entities/transaction.dart';
+import '../../../domain/services/backup_service.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../widgets/bee_brand.dart';
@@ -8,10 +12,17 @@ import '../../widgets/bee_brand.dart';
 /// Matches pubspec.yaml version field.
 const _appVersion = '1.0.0+1';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _confirmClearAll(BuildContext context, WidgetRef ref) async {
+  @override
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _busy = false;
+
+  Future<void> _confirmClearAll(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -49,11 +60,154 @@ class SettingsScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _backup() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final list = ref.read(transactionsProvider).valueOrNull ?? [];
+      if (list.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No transactions to back up'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
+      final service = BackupService();
+      final path = await service.createBackupFile(list);
+      await service.shareBackup(path);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Backup ready · ${list.length} transaction'
+              '${list.length == 1 ? '' : 's'}',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backup failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _restore() async {
+    if (_busy) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['json'],
+      withData: false,
+      dialogTitle: 'Select MoneyBee backup',
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final path = result.files.single.path;
+    if (path == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not read the selected file'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final List<Transaction> items;
+    try {
+      final service = BackupService();
+      items = await service.loadBackupFile(path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid backup file: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final count = items.length;
+    if (!mounted) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore backup?'),
+        content: Text(
+          'This will replace all current data with $count transaction'
+          '${count == 1 ? '' : 's'} from the backup.\n\n'
+          'Tip: export a backup first if you want to keep today’s data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _busy = true);
+    try {
+      await ref.read(transactionsProvider.notifier).restoreAll(items);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Restored $count transaction${count == 1 ? '' : 's'}',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Restore failed: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final iconColor = onSurface.withValues(alpha: 0.85);
     final themeMode = ref.watch(themeModeProvider);
+    final txCount =
+        ref.watch(transactionsProvider).valueOrNull?.length ?? 0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -139,6 +293,51 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 8),
           const Divider(indent: 16, endIndent: 16),
 
+          // ── Data ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: Text(
+              'Data',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: onSurface,
+                fontSize: 15,
+              ),
+            ),
+          ),
+          ListTile(
+            leading: Icon(Icons.backup_outlined, color: iconColor),
+            title: const Text('Backup'),
+            subtitle: Text(
+              txCount == 0
+                  ? 'No transactions yet'
+                  : 'Export all $txCount transaction'
+                      '${txCount == 1 ? '' : 's'} as JSON',
+            ),
+            trailing: _busy
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            onTap: _busy ? null : _backup,
+          ),
+          ListTile(
+            leading: Icon(Icons.restore_outlined, color: iconColor),
+            title: const Text('Restore'),
+            subtitle: const Text('Import a MoneyBee JSON backup'),
+            trailing: _busy
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            onTap: _busy ? null : _restore,
+          ),
+          const Divider(indent: 16, endIndent: 16),
+
           ListTile(
             leading: Icon(Icons.tag, color: iconColor),
             title: const Text('App version'),
@@ -170,7 +369,7 @@ class SettingsScreen extends ConsumerWidget {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
             subtitle: const Text('Delete all transactions (demo reset)'),
-            onTap: () => _confirmClearAll(context, ref),
+            onTap: _busy ? null : () => _confirmClearAll(context),
           ),
         ],
       ),

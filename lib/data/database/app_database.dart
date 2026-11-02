@@ -59,6 +59,18 @@ class AppDatabase extends _$AppDatabase {
   Future<void> deleteAllTx() {
     return delete(transactions).go();
   }
+
+  /// Wipe then insert many rows in one transaction (used by restore).
+  Future<void> replaceAllTx(List<TransactionsCompanion> entries) async {
+    await transaction(() async {
+      await delete(transactions).go();
+      if (entries.isNotEmpty) {
+        await batch((b) {
+          b.insertAll(transactions, entries);
+        });
+      }
+    });
+  }
 }
 
 LazyDatabase _openConnection() {

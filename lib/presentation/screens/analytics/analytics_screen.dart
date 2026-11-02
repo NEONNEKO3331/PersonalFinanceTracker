@@ -485,7 +485,8 @@ class _AiInsightCardState extends State<_AiInsightCard> {
         _insight = text;
         _loading = false;
       });
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('AI monthly insight failed: $error\n$stackTrace');
       if (!mounted) return;
       setState(() {
         _error = _describeError(error);

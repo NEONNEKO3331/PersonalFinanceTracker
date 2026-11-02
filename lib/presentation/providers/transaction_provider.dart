@@ -100,6 +100,12 @@ class TransactionsNotifier extends AsyncNotifier<List<Transaction>> {
     await refresh();
   }
 
+  /// Full restore from backup: replaces all local transactions.
+  Future<void> restoreAll(List<Transaction> items) async {
+    await ref.read(transactionRepositoryProvider).replaceAll(items);
+    await refresh();
+  }
+
   /// Human-readable period title.
   String periodLabel(HomePeriod period, {DateRange? customRange}) {
     switch (period) {

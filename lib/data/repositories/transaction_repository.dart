@@ -81,6 +81,25 @@ class TransactionRepository {
 
   Future<void> deleteAll() => _db.deleteAllTx();
 
+  /// Replace entire local DB with [items] (backup restore).
+  Future<void> replaceAll(List<domain.Transaction> items) async {
+    final companions = items
+        .map(
+          (tx) => TransactionsCompanion.insert(
+            id: tx.id,
+            amount: tx.amount,
+            category: tx.category,
+            date: tx.date,
+            merchant: tx.merchant,
+            note: Value(tx.note),
+            type: tx.type.name,
+            createdAt: tx.createdAt,
+          ),
+        )
+        .toList();
+    await _db.replaceAllTx(companions);
+  }
+
   domain.Transaction _toDomain(Transaction row) {
     return domain.Transaction(
       id: row.id,
