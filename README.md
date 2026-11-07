@@ -18,7 +18,8 @@ Offline-first personal finance tracker (FYP).
 | **History** | Full list grouped by day. Filter by type (All / Expense / Income). Search merchant / note / category. Edit & delete. |
 | **Analytics** | Pie chart + category breakdown. Same period selector. **AI monthly insight** (Generate / Regenerate) via Firebase AI (Gemini). |
 | **Export** | Week / Month / Custom range → `.xlsx` (Summary + Transactions sheets) via share sheet. |
-| **Settings** | App version, clear all data (demo reset). |
+| **Backup / Restore** | Settings → full JSON backup (share) + restore via file picker. Replaces local SQLite data. |
+| **Settings** | App version, theme, backup/restore, clear all data (demo reset). |
 | **UX** | SnackBars on save / update / delete. Bee-themed UI (honey / cream / charcoal). English only. |
 
 All transaction data stays in local SQLite. OCR runs fully on-device. AI insight is the only network call (optional).
@@ -39,7 +40,7 @@ All transaction data stays in local SQLite. OCR runs fully on-device. AI insight
 │  Domain                                                      │
 │  Transaction · Categories                                    │
 │  OcrService (Paddle / Mock) · CategoryService (rules)        │
-│  ExportService · AiInsightService (Firebase AI / Gemini)     │
+│  ExportService · BackupService · AiInsightService (Gemini)   │
 └──────────────────────────────┬──────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────┐
@@ -61,11 +62,11 @@ Image → PaddleOCR (on-device) → text lines
 
 ```text
 lib/
-├── main.dart                 # Firebase + App Check init, ProviderScope
+├── main.dart                 # ProviderScope, theme, root messenger
 ├── app/                      # theme (BeeColors), router (StatefulShellRoute)
 ├── domain/
 │   ├── entities/
-│   └── services/             # ocr, category, export, ai_insight
+│   └── services/             # ocr, category, export, backup, ai_insight
 ├── data/
 │   ├── database/             # Drift schema
 │   └── repositories/
@@ -88,6 +89,7 @@ lib/
 | Category | Keyword rules | Lightweight, works offline |
 | Charts | fl_chart | Pie + breakdown on Analytics |
 | Export | excel + share_plus | XLSX with Summary + Transactions |
+| Backup | JSON + file_picker + share_plus | Full local backup/restore without cloud |
 | AI insight | Firebase AI (Gemini) | Optional monthly narrative; only network feature |
 | Privacy | Local-first | Receipts & amounts never leave the phone by default |
 
@@ -129,7 +131,7 @@ dart run build_runner build --delete-conflicting-outputs
 
 5. App Check is initialized with the debug provider on Android in `main.dart`. Use a real provider for release builds.
 
-Without these files the rest of the app (transactions, OCR, analytics charts, export) still runs; only the AI insight card will fail until Firebase is configured.
+Without these files the rest of the app (transactions, OCR, analytics charts, export, backup) still runs; only the AI insight card will fail until Firebase is configured.
 
 ### Android OCR notes
 
@@ -184,9 +186,17 @@ Implemented via `HomePeriod` + `customDateRangeProvider` and the shared `PeriodS
 
 ---
 
+## Backup & restore
+
+- **Backup** (Settings): exports all transactions to a timestamped JSON file and opens the system share sheet.
+- **Restore** (Settings): pick a MoneyBee JSON backup via file picker → confirms → replaces the entire local SQLite dataset.
+- Useful for demo resets, device migration, or keeping a snapshot before clearing data.
+
+---
+
 ## Demo checklist
 
-Use **Settings → Clear all data** before recording so the flow starts clean.
+Use **Settings → Clear all data** (or restore a known backup) before recording so the flow starts clean.
 
 ### Suggested 30–60s video
 
@@ -196,7 +206,7 @@ Use **Settings → Clear all data** before recording so the flow starts clean.
 4. History — day groups, filter, search
 5. Analytics — pie chart + Generate AI insight
 6. Export — pick range → share XLSX
-7. Optional — Settings → version + clear data
+7. Optional — Settings → Backup / Restore / version / clear data
 
 ### Screenshots (4–5)
 
@@ -206,7 +216,7 @@ Use **Settings → Clear all data** before recording so the flow starts clean.
 | 2 | Scan / Add | OCR-prefilled form |
 | 3 | History | Grouped list + filter/search |
 | 4 | Analytics | Pie + AI insight card |
-| 5 | Export | Range + share result |
+| 5 | Export or Settings | Range + share, or Backup / Restore |
 
 ---
 
