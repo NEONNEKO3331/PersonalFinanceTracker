@@ -148,7 +148,14 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          // Extra bottom inset so Save button clears system nav / gesture bar
+          // (this route has no bottom navigation bar).
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            16 + MediaQuery.paddingOf(context).bottom,
+          ),
           children: [
             SegmentedButton<TransactionType>(
               segments: const [

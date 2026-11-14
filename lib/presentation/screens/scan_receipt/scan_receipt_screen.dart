@@ -94,7 +94,14 @@ class _ScanReceiptScreenState extends ConsumerState<ScanReceiptScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Scan Receipt')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        // Extra bottom inset so primary button clears system nav / gesture bar
+        // (this route has no bottom navigation bar).
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          16 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
           if (_image == null)
             _Placeholder(onTap: _chooseSource)
